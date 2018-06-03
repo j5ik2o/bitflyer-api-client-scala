@@ -30,7 +30,12 @@ class ApiClientSpec
     TestKit.shutdownActorSystem(system)
   }
 
-  val apiClient = new ApiClient(ApiConfig("api.bitflyer.jp", 443, 3 seconds))
+  val apiClient = new ApiClient(
+    ApiConfig("api.bitflyer.jp",
+              443,
+              3 seconds,
+              sys.env("ACCESS-KEY"),
+              sys.env("SECRET-KEY")))
 
   "ApiClient" - {
 
@@ -52,6 +57,14 @@ class ApiClientSpec
     }
     "getHealth" in {
       val result = apiClient.getHealth().futureValue
+      println(result)
+    }
+    "getBalances" in {
+      val result = apiClient.getBalances().futureValue
+      println(result)
+    }
+    "getCollateral" in {
+      val result = apiClient.getCollateral().futureValue
       println(result)
     }
   }

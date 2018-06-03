@@ -62,6 +62,7 @@ lazy val library = (project in file("library")).settings(
     name := "bitflyer-api-client-scala",
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.5" % Test,
+      "commons-codec" % "commons-codec" % "1.11",
       "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
       "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
       "com.typesafe.akka" %% "akka-actor" % akkaVersion,

@@ -1,13 +1,17 @@
 package com.github.j5ik2o.bacs.api
 
+import java.time.ZonedDateTime
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.github.j5ik2o.bacs.model._
 import io.circe.{Decoder, Json}
 import io.circe.parser._
+import org.apache.commons.codec.digest.{HmacAlgorithms, HmacUtils}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
@@ -137,4 +141,49 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     }
   }
 
+  private def calcSignValue(ts: Long,
+                            method: String,
+                            path: String,
+                            body: Option[String] = None) = {
+    val text = s"$ts$method$path${body.getOrElse("")}"
+    new HmacUtils(HmacAlgorithms.HMAC_SHA_256, config.secretKey).hmacHex(text)
+  }
+
+  private def privateAccessHeaders(
+      method: String,
+      path: String,
+      body: Option[String] = None): Seq[RawHeader] = {
+    val ts = ZonedDateTime.now.toInstant.toEpochMilli
+    val sign = calcSignValue(ts, method, path, body)
+    Seq(RawHeader("ACCESS-KEY", config.accessKey),
+        RawHeader("ACCESS-TIMESTAMP", ts.toString),
+        RawHeader("ACCESS-SIGN", sign))
+  }
+
+  def getBalances()(implicit ec: ExecutionContext): Future[List[Balance]] = {
+    val url = "/v1/me/getbalance"
+    val responseFuture = Source
+      .single(HttpRequest(uri = url).withHeaders(
+        privateAccessHeaders("GET", url): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[Balance]](Future.fromTry(triedResponse))
+    }
+  }
+
+  def getCollateral()(implicit ec: ExecutionContext): Future[Collateral] = {
+    val url = "/v1/me/getcollateral"
+    val responseFuture = Source
+      .single(HttpRequest(uri = url).withHeaders(
+        privateAccessHeaders("GET", url): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[Collateral](Future.fromTry(triedResponse))
+    }
+
+  }
 }
