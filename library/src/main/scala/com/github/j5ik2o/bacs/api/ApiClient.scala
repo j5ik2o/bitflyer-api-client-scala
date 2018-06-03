@@ -5,7 +5,7 @@ import java.time.ZonedDateTime
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.github.j5ik2o.bacs.model._
@@ -101,12 +101,18 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
                     beforeOpt: Option[Long] = None,
                     afterOpt: Option[Long] = None)(
       implicit ec: ExecutionContext): Future[Ticker] = {
-    val url =
-      s"/v1/executions${productCodeOpt.fold("")(v => s"product_code=$v")}${countOpt
-        .fold("")(v => s"count=$v")}${beforeOpt.fold("")(v => s"before=$v")}${afterOpt
-        .fold("")(v => s"after=$v")}"
+    val params = productCodeOpt.fold(Map.empty[String, String]) { v =>
+      Map("product_code" -> v)
+    } ++ countOpt.fold(Map.empty[String, String]) { v =>
+      Map("count" -> v.toString)
+    } ++ beforeOpt.fold(Map.empty[String, String]) { v =>
+      Map("before" -> v.toString)
+    } ++ afterOpt.fold(Map.empty[String, String]) { v =>
+      Map("after" -> v.toString)
+    }
     val responseFuture = Source
-      .single(HttpRequest(uri = url) -> 1)
+      .single(HttpRequest(
+        uri = Uri("/v1/executions").withQuery(Uri.Query(params))) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
@@ -184,6 +190,58 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
       case (triedResponse, _) =>
         responseToModel[Collateral](Future.fromTry(triedResponse))
     }
-
   }
+
+  def getCollateralAccounts()(
+      implicit ec: ExecutionContext): Future[List[CollateralAccount]] = {
+    val path = "/v1/me/getcollateralaccounts"
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = path).withHeaders(
+          privateAccessHeaders("GET", path): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[CollateralAccount]](Future.fromTry(triedResponse))
+    }
+  }
+
+  def getAddresses()(implicit ec: ExecutionContext): Future[List[Address]] = {
+    val url = "/v1/me/getaddresses"
+    val responseFuture = Source
+      .single(HttpRequest(uri = url).withHeaders(
+        privateAccessHeaders("GET", url): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[Address]](Future.fromTry(triedResponse))
+    }
+  }
+
+  def getCoinIns(countOpt: Option[Int] = None,
+                 beforeOpt: Option[Long] = None,
+                 afterOpt: Option[Long] = None)(
+      implicit ec: ExecutionContext): Future[List[CoinIn]] = {
+    val params = countOpt.fold(Map.empty[String, String]) { v =>
+      Map("count" -> v.toString)
+    } ++ beforeOpt.fold(Map.empty[String, String]) { v =>
+      Map("before" -> v.toString)
+    } ++ afterOpt.fold(Map.empty[String, String]) { v =>
+      Map("after" -> v.toString)
+    }
+    val uri = Uri("/v1/me/getcoinins").withQuery(Uri.Query(params))
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = uri).withHeaders(
+          privateAccessHeaders("GET", uri.toString()): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[CoinIn]](Future.fromTry(triedResponse))
+    }
+  }
+
 }

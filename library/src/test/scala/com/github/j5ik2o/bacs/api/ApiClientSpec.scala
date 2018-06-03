@@ -67,6 +67,18 @@ class ApiClientSpec
       val result = apiClient.getCollateral().futureValue
       println(result)
     }
+    "getCollateralAccounts" in {
+      val result = apiClient.getCollateralAccounts().futureValue
+      println(result)
+    }
+    "getAddresses" in {
+      val result = apiClient.getAddresses().futureValue
+      println(result)
+    }
+    "getCoinIns" in {
+      val result = apiClient.getCoinIns().futureValue
+      println(result)
+    }
   }
 
 }
