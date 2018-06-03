@@ -5,7 +5,7 @@ import java.time.ZonedDateTime
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
+import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.github.j5ik2o.bacs.model._
@@ -16,13 +16,12 @@ import org.apache.commons.codec.digest.{HmacAlgorithms, HmacUtils}
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
 
-case class JsonParsingException(message: String) extends Exception(message)
-
-case class JsonDecodingException(message: String) extends Exception(message)
-
 class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
 
   import io.circe.generic.auto._
+
+  private val hmacUtils =
+    new HmacUtils(HmacAlgorithms.HMAC_SHA_256, config.secretKey)
 
   private implicit val materializer = ActorMaterializer()
   private val poolClientFlow =
@@ -147,20 +146,22 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     }
   }
 
-  private def calcSignValue(ts: Long,
-                            method: String,
-                            path: String,
-                            body: Option[String] = None) = {
+  private def createSignValue(ts: Long,
+                              method: String,
+                              path: String,
+                              body: Option[String] = None) = {
     val text = s"$ts$method$path${body.getOrElse("")}"
-    new HmacUtils(HmacAlgorithms.HMAC_SHA_256, config.secretKey).hmacHex(text)
+    hmacUtils.hmacHex(text)
   }
 
+  // --- Private API
+
   private def privateAccessHeaders(
-      method: String,
+      method: HttpMethod,
       path: String,
       body: Option[String] = None): Seq[RawHeader] = {
     val ts = ZonedDateTime.now.toInstant.toEpochMilli
-    val sign = calcSignValue(ts, method, path, body)
+    val sign = createSignValue(ts, method.value, path, body)
     Seq(RawHeader("ACCESS-KEY", config.accessKey),
         RawHeader("ACCESS-TIMESTAMP", ts.toString),
         RawHeader("ACCESS-SIGN", sign))
@@ -169,8 +170,9 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   def getBalances()(implicit ec: ExecutionContext): Future[List[Balance]] = {
     val url = "/v1/me/getbalance"
     val responseFuture = Source
-      .single(HttpRequest(uri = url).withHeaders(
-        privateAccessHeaders("GET", url): _*) -> 1)
+      .single(
+        HttpRequest(uri = url).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, url): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
@@ -182,8 +184,9 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   def getCollateral()(implicit ec: ExecutionContext): Future[Collateral] = {
     val url = "/v1/me/getcollateral"
     val responseFuture = Source
-      .single(HttpRequest(uri = url).withHeaders(
-        privateAccessHeaders("GET", url): _*) -> 1)
+      .single(
+        HttpRequest(uri = url).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, url): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
@@ -198,7 +201,7 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     val responseFuture = Source
       .single(
         HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders("GET", path): _*) -> 1)
+          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
@@ -210,8 +213,9 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   def getAddresses()(implicit ec: ExecutionContext): Future[List[Address]] = {
     val url = "/v1/me/getaddresses"
     val responseFuture = Source
-      .single(HttpRequest(uri = url).withHeaders(
-        privateAccessHeaders("GET", url): _*) -> 1)
+      .single(
+        HttpRequest(uri = url).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, url): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
@@ -235,7 +239,7 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     val responseFuture = Source
       .single(
         HttpRequest(uri = uri).withHeaders(
-          privateAccessHeaders("GET", uri.toString()): _*) -> 1)
+          privateAccessHeaders(HttpMethods.GET, uri.toString()): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
