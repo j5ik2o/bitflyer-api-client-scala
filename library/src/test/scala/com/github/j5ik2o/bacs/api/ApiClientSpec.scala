@@ -79,6 +79,18 @@ class ApiClientSpec
       val result = apiClient.getCoinIns().futureValue
       println(result)
     }
+//    "getCoinOuts" in {
+//      val result = apiClient.getCoinOuts().futureValue
+//      println(result)
+//    }
+//    "getBankAccounts" in {
+//      val result = apiClient.getBankAccounts().futureValue
+//      println(result)
+//    }
+//    "getDeposits" in {
+//      val result = apiClient.getDeposits().futureValue
+//      println(result)
+//    }
   }
 
 }
