@@ -65,6 +65,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     } yield model
   }
 
+  private def buildPagingParams(countOpt: Option[Int],
+                                beforeOpt: Option[Long],
+                                afterOpt: Option[Long]): Map[String, String] = {
+    countOpt.fold(Map.empty[String, String]) { v =>
+      Map("count" -> v.toString)
+    } ++ beforeOpt.fold(Map.empty[String, String]) { v =>
+      Map("before" -> v.toString)
+    } ++ afterOpt.fold(Map.empty[String, String]) { v =>
+      Map("after" -> v.toString)
+    }
+
+  }
+
   private def createSignValue(ts: Long,
                               method: String,
                               path: String,
@@ -169,13 +182,7 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
       implicit ec: ExecutionContext): Future[Ticker] = {
     val params = productCodeOpt.fold(Map.empty[String, String]) { v =>
       Map(QUERY_PARAM_NAME_PRODUCT_CODE -> v)
-    } ++ countOpt.fold(Map.empty[String, String]) { v =>
-      Map("count" -> v.toString)
-    } ++ beforeOpt.fold(Map.empty[String, String]) { v =>
-      Map("before" -> v.toString)
-    } ++ afterOpt.fold(Map.empty[String, String]) { v =>
-      Map("after" -> v.toString)
-    }
+    } ++ buildPagingParams(countOpt, beforeOpt, afterOpt)
     val responseFuture = Source
       .single(HttpRequest(
         uri = Uri("/v1/executions").withQuery(Uri.Query(params))) -> 1)
@@ -235,8 +242,9 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param ec
     * @return
     */
-  def getChats(fromDateOpt: Option[ZonedDateTime] = None)(
-      implicit ec: ExecutionContext) = {
+  def getChats(fromDateOpt: Option[ZonedDateTime] = Some(
+                 ZonedDateTime.now().minusSeconds(5)))(
+      implicit ec: ExecutionContext): Future[List[Chat]] = {
     val params = fromDateOpt
       .map(v =>
         Map("from_date" -> DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(v)))
@@ -256,9 +264,30 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   // --- Private API
 
   /**
+    * 呼出可能なエンドポイント一覧の取得。
     *
-    * @param ec
-    * @return
+    * @param ec [[ExecutionContext]]
+    * @return 呼出可能なエンドポイント一覧
+    */
+  def getPermissions()(implicit ec: ExecutionContext): Future[List[String]] = {
+    val path = "/v1/me/getpermissions"
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = path).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[String]](Future.fromTry(triedResponse))
+    }
+  }
+
+  /**
+    * 資産残高一覧の取得。
+    *
+    * @param ec [[ExecutionContext]]
+    * @return 資産残高一覧
     */
   def getBalances()(implicit ec: ExecutionContext): Future[List[Balance]] = {
     val path = "/v1/me/getbalance"
@@ -275,9 +304,10 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   }
 
   /**
+    * 証拠金状態の取得。
     *
-    * @param ec
-    * @return
+    * @param ec [[ExecutionContext]]
+    * @return 証拠金状態
     */
   def getCollateral()(implicit ec: ExecutionContext): Future[Collateral] = {
     val path = "/v1/me/getcollateral"
@@ -294,9 +324,10 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   }
 
   /**
+    * 通貨別の証拠金一覧の取得。
     *
-    * @param ec
-    * @return
+    * @param ec [[ExecutionContext]]
+    * @return 通貨別の証拠金一覧
     */
   def getCollateralAccounts()(
       implicit ec: ExecutionContext): Future[List[CollateralAccount]] = {
@@ -314,10 +345,10 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   }
 
   /**
-    * 預入用アドレスの取得。
+    * 預入用アドレス一覧の取得。
     *
-    * @param ec
-    * @return
+    * @param ec [[ExecutionContext]]
+    * @return 預入用アドレス一覧
     */
   def getAddresses()(implicit ec: ExecutionContext): Future[List[Address]] = {
     val path = "/v1/me/getaddresses"
@@ -336,23 +367,17 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   /**
     * 仮想通貨預入履歴の取得。
     *
-    * @param countOpt
-    * @param beforeOpt
-    * @param afterOpt
-    * @param ec
-    * @return
+    * @param countOpt 結果の件数
+    * @param beforeOpt このIDより小さいIDを持つデータを取得する
+    * @param afterOpt このIDより大きいIDを持つデータを取得する
+    * @param ec [[ExecutionContext]]
+    * @return 仮想通貨預入履歴
     */
   def getCoinIns(countOpt: Option[Int] = None,
                  beforeOpt: Option[Long] = None,
                  afterOpt: Option[Long] = None)(
       implicit ec: ExecutionContext): Future[List[CoinIn]] = {
-    val params = countOpt.fold(Map.empty[String, String]) { v =>
-      Map("count" -> v.toString)
-    } ++ beforeOpt.fold(Map.empty[String, String]) { v =>
-      Map("before" -> v.toString)
-    } ++ afterOpt.fold(Map.empty[String, String]) { v =>
-      Map("after" -> v.toString)
-    }
+    val params = buildPagingParams(countOpt, beforeOpt, afterOpt)
     val uri = Uri("/v1/me/getcoinins").withQuery(Uri.Query(params))
     val responseFuture = Source
       .single(
@@ -363,6 +388,81 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     responseFuture.flatMap {
       case (triedResponse, _) =>
         responseToModel[List[CoinIn]](Future.fromTry(triedResponse))
+    }
+  }
+
+  /**
+    * 仮想通貨送付履歴の取得。
+    *
+    * @param countOpt 結果の件数
+    * @param beforeOpt このIDより小さいIDを持つデータを取得する
+    * @param afterOpt このIDより大きいIDを持つデータを取得する
+    * @param ec [[ExecutionContext]]
+    * @return 仮想通貨送付履歴
+    */
+  def getCoinOuts(countOpt: Option[Int] = None,
+                  beforeOpt: Option[Long] = None,
+                  afterOpt: Option[Long] = None)(
+      implicit ec: ExecutionContext): Future[List[CoinOut]] = {
+    val params = buildPagingParams(countOpt, beforeOpt, afterOpt)
+    val uri = Uri("/v1/me/getcoinouts").withQuery(Uri.Query(params))
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = uri).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, uri.toString()): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[CoinOut]](Future.fromTry(triedResponse))
+    }
+  }
+
+  /**
+    * 銀行口座一覧の取得。
+    *
+    * @param ec [[ExecutionContext]]
+    * @return 銀行口座一覧
+    */
+  def getBankAccounts()(
+      implicit ec: ExecutionContext): Future[List[BankAccount]] = {
+    val path = "/v1/me/getbankaccounts"
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = path).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[BankAccount]](Future.fromTry(triedResponse))
+    }
+  }
+
+  /**
+    * 入金履歴の取得。
+    *
+    * @param countOpt 結果の件数
+    * @param beforeOpt このIDより小さいIDを持つデータを取得する
+    * @param afterOpt このIDより大きいIDを持つデータを取得する
+    * @param ec [[ExecutionContext]]
+    * @return 入金履歴
+    */
+  def getDeposits(countOpt: Option[Int] = None,
+                  beforeOpt: Option[Long] = None,
+                  afterOpt: Option[Long] = None)(
+      implicit ec: ExecutionContext): Future[List[Deposit]] = {
+    val params = buildPagingParams(countOpt, beforeOpt, afterOpt)
+    val uri = Uri("/v1/me/getdeposits").withQuery(Uri.Query(params))
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = uri).withHeaders(
+          privateAccessHeaders(HttpMethods.GET, uri.toString()): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[List[Deposit]](Future.fromTry(triedResponse))
     }
   }
 
