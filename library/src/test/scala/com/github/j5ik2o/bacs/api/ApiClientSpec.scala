@@ -59,6 +59,11 @@ class ApiClientSpec
       val result = apiClient.getHealth().futureValue
       println(result)
     }
+    "getChats" in {
+      val result = apiClient.getChats().futureValue
+      println(result)
+    }
+    // --- Private API
     "getBalances" in {
       val result = apiClient.getBalances().futureValue
       println(result)
