@@ -8,7 +8,7 @@ import io.circe.syntax._
 
 case class Deposit(id: Long,
                    orderId: String,
-                   currencyCode: String,
+                   currencyCode: CurrencyCode,
                    amount: BigDecimal,
                    status: String,
                    eventDate: ZonedDateTime)
@@ -30,7 +30,7 @@ object Deposit extends JsonImplicits {
     for {
       id <- hcursor.get[Long]("id")
       orderId <- hcursor.get[String]("order_id")
-      currencyCode <- hcursor.get[String]("currency_code")
+      currencyCode <- hcursor.get[CurrencyCode]("currency_code")
       amount <- hcursor.get[BigDecimal]("amount")
       status <- hcursor.get[String]("status")
       eventDate <- hcursor.get[ZonedDateTime]("event_date")

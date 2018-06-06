@@ -66,7 +66,8 @@ lazy val library = (project in file("library")).settings(
       "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
       "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
       "com.typesafe.akka" %% "akka-actor" % akkaVersion,
-      "com.typesafe.akka" %% "akka-stream" % akkaVersion
+      "com.typesafe.akka" %% "akka-stream" % akkaVersion,
+      "com.beachape" %% "enumeratum" % "1.5.13"
     ) ++ Seq(
       "io.circe" %% "circe-core",
       "io.circe" %% "circe-generic",

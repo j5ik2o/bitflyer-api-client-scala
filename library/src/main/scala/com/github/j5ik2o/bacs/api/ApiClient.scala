@@ -1,21 +1,23 @@
 package com.github.j5ik2o.bacs.api
 
+import java.nio.charset.StandardCharsets
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.github.j5ik2o.bacs.model._
-import io.circe.{Decoder, Json}
 import io.circe.parser._
+import io.circe.syntax._
+import io.circe.{Decoder, Json}
 import org.apache.commons.codec.digest.{HmacAlgorithms, HmacUtils}
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ExecutionContext, Future}
 
 object ApiClient {
   final val HEADER_NAME_ACCESS_KEY = "ACCESS-KEY"
@@ -107,15 +109,16 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param ec
     * @return
     */
-  def getMarkets()(implicit ec: ExecutionContext): Future[List[Market]] = {
+  def getMarkets()(implicit ec: ExecutionContext): Future[MarketsResponse] = {
+    val method = HttpMethods.GET
     val url = "/v1/markets"
     val responseFuture = Source
-      .single(HttpRequest(uri = url) -> 1)
+      .single(HttpRequest(uri = url, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[Market]](Future.fromTry(triedResponse))
+        responseToModel[MarketsResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -127,18 +130,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @return [[Future[Board]]]
     */
   def getBoard(productCodeOpt: Option[String] = None)(
-      implicit ec: ExecutionContext): Future[Board] = {
+      implicit ec: ExecutionContext): Future[BoardResponse] = {
     val params = productCodeOpt
       .map(v => Map(QUERY_PARAM_NAME_PRODUCT_CODE -> v))
       .getOrElse(Map.empty[String, String])
+    val method = HttpMethods.GET
     val uri = Uri("/v1/board").withQuery(Uri.Query(params))
     val responseFuture = Source
-      .single(HttpRequest(uri = uri) -> 1)
+      .single(HttpRequest(uri = uri, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[Board](Future.fromTry(triedResponse))
+        responseToModel[BoardResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -150,18 +154,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @return
     */
   def getTicker(productCodeOpt: Option[String] = None)(
-      implicit ec: ExecutionContext): Future[Ticker] = {
+      implicit ec: ExecutionContext): Future[TickerResponse] = {
     val params = productCodeOpt
       .map(v => Map(QUERY_PARAM_NAME_PRODUCT_CODE -> v))
       .getOrElse(Map.empty[String, String])
+    val method = HttpMethods.GET
     val uri = Uri("/v1/ticker").withQuery(Uri.Query(params))
     val responseFuture = Source
-      .single(HttpRequest(uri = uri) -> 1)
+      .single(HttpRequest(uri = uri, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[Ticker](Future.fromTry(triedResponse))
+        responseToModel[TickerResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -172,25 +177,26 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param countOpt
     * @param beforeOpt
     * @param afterOpt
-    * @param ec
+    * @param ec [[ExecutionContext]]
     * @return
     */
   def getExecutions(productCodeOpt: Option[String] = None,
                     countOpt: Option[Int] = None,
                     beforeOpt: Option[Long] = None,
                     afterOpt: Option[Long] = None)(
-      implicit ec: ExecutionContext): Future[Ticker] = {
+      implicit ec: ExecutionContext): Future[ExecutionsResponse] = {
     val params = productCodeOpt.fold(Map.empty[String, String]) { v =>
       Map(QUERY_PARAM_NAME_PRODUCT_CODE -> v)
     } ++ buildPagingParams(countOpt, beforeOpt, afterOpt)
+    val method = HttpMethods.GET
+    val uri = Uri("/v1/executions").withQuery(Uri.Query(params))
     val responseFuture = Source
-      .single(HttpRequest(
-        uri = Uri("/v1/executions").withQuery(Uri.Query(params))) -> 1)
+      .single(HttpRequest(uri = uri, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[Ticker](Future.fromTry(triedResponse))
+        responseToModel[ExecutionsResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -198,40 +204,42 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * 板状態の取得。
     *
     * @param productCodeOpt プロダクトコードもしくはエイリアス
-    * @param ec
+    * @param ec [[ExecutionContext]]
     * @return
     */
   def getBoardState(productCodeOpt: Option[String] = None)(
-      implicit ec: ExecutionContext): Future[BoardState] = {
+      implicit ec: ExecutionContext): Future[BoardStateResponse] = {
     val params = productCodeOpt
       .map(v => Map(QUERY_PARAM_NAME_PRODUCT_CODE -> v))
       .getOrElse(Map.empty[String, String])
+    val method = HttpMethods.GET
     val uri = Uri("/v1/getboardstate").withQuery(Uri.Query(params))
     val responseFuture = Source
-      .single(HttpRequest(uri = uri) -> 1)
+      .single(HttpRequest(uri = uri, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[BoardState](Future.fromTry(triedResponse))
+        responseToModel[BoardStateResponse](Future.fromTry(triedResponse))
     }
   }
 
   /**
     * 取引所状態の取得。
     *
-    * @param ec
+    * @param ec [[ExecutionContext]]
     * @return
     */
-  def getHealth()(implicit ec: ExecutionContext): Future[Health] = {
+  def getHealth()(implicit ec: ExecutionContext): Future[HealthResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/gethealth"
     val responseFuture = Source
-      .single(HttpRequest(uri = path) -> 1)
+      .single(HttpRequest(uri = path, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[Health](Future.fromTry(triedResponse))
+        responseToModel[HealthResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -239,24 +247,25 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * チャットでの発言一覧の取得
     *
     * @param fromDateOpt 取得する発言日時
-    * @param ec
+    * @param ec [[ExecutionContext]]
     * @return
     */
   def getChats(fromDateOpt: Option[ZonedDateTime] = Some(
                  ZonedDateTime.now().minusSeconds(5)))(
-      implicit ec: ExecutionContext): Future[List[Chat]] = {
+      implicit ec: ExecutionContext): Future[ChatsResponse] = {
     val params = fromDateOpt
       .map(v =>
         Map("from_date" -> DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(v)))
       .getOrElse(Map.empty[String, String])
+    val method = HttpMethods.GET
     val uri = Uri("/v1/getchats").withQuery(Uri.Query(params))
     val responseFuture = Source
-      .single(HttpRequest(uri = uri) -> 1)
+      .single(HttpRequest(uri = uri, method = method) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[Chat]](Future.fromTry(triedResponse))
+        responseToModel[ChatsResponse](Future.fromTry(triedResponse))
     }
 
   }
@@ -269,17 +278,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param ec [[ExecutionContext]]
     * @return 呼出可能なエンドポイント一覧
     */
-  def getPermissions()(implicit ec: ExecutionContext): Future[List[String]] = {
+  def getPermissions()(
+      implicit ec: ExecutionContext): Future[PermissionsResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/me/getpermissions"
     val responseFuture = Source
       .single(
-        HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+        HttpRequest(uri = path, method = method).withHeaders(
+          privateAccessHeaders(method, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[String]](Future.fromTry(triedResponse))
+        responseToModel[PermissionsResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -289,17 +300,18 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param ec [[ExecutionContext]]
     * @return 資産残高一覧
     */
-  def getBalances()(implicit ec: ExecutionContext): Future[List[Balance]] = {
+  def getBalances()(implicit ec: ExecutionContext): Future[BalancesResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/me/getbalance"
     val responseFuture = Source
       .single(
-        HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+        HttpRequest(uri = path, method = method).withHeaders(
+          privateAccessHeaders(method, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[Balance]](Future.fromTry(triedResponse))
+        responseToModel[BalancesResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -309,17 +321,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param ec [[ExecutionContext]]
     * @return 証拠金状態
     */
-  def getCollateral()(implicit ec: ExecutionContext): Future[Collateral] = {
+  def getCollateral()(
+      implicit ec: ExecutionContext): Future[CollateralResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/me/getcollateral"
     val responseFuture = Source
       .single(
-        HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+        HttpRequest(uri = path, method = method).withHeaders(
+          privateAccessHeaders(method, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[Collateral](Future.fromTry(triedResponse))
+        responseToModel[CollateralResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -330,17 +344,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @return 通貨別の証拠金一覧
     */
   def getCollateralAccounts()(
-      implicit ec: ExecutionContext): Future[List[CollateralAccount]] = {
+      implicit ec: ExecutionContext): Future[CollateralAccountsResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/me/getcollateralaccounts"
     val responseFuture = Source
       .single(
-        HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+        HttpRequest(uri = path, method = method).withHeaders(
+          privateAccessHeaders(method, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[CollateralAccount]](Future.fromTry(triedResponse))
+        responseToModel[CollateralAccountsResponse](
+          Future.fromTry(triedResponse))
     }
   }
 
@@ -350,17 +366,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @param ec [[ExecutionContext]]
     * @return 預入用アドレス一覧
     */
-  def getAddresses()(implicit ec: ExecutionContext): Future[List[Address]] = {
+  def getAddresses()(
+      implicit ec: ExecutionContext): Future[AddressesResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/me/getaddresses"
     val responseFuture = Source
       .single(
-        HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+        HttpRequest(uri = path, method = method).withHeaders(
+          privateAccessHeaders(method, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[Address]](Future.fromTry(triedResponse))
+        responseToModel[AddressesResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -376,18 +394,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   def getCoinIns(countOpt: Option[Int] = None,
                  beforeOpt: Option[Long] = None,
                  afterOpt: Option[Long] = None)(
-      implicit ec: ExecutionContext): Future[List[CoinIn]] = {
+      implicit ec: ExecutionContext): Future[CoinInsResponse] = {
+    val method = HttpMethods.GET
     val params = buildPagingParams(countOpt, beforeOpt, afterOpt)
     val uri = Uri("/v1/me/getcoinins").withQuery(Uri.Query(params))
     val responseFuture = Source
       .single(
-        HttpRequest(uri = uri).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, uri.toString()): _*) -> 1)
+        HttpRequest(uri = uri, method = method).withHeaders(
+          privateAccessHeaders(method, uri.toString()): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[CoinIn]](Future.fromTry(triedResponse))
+        responseToModel[CoinInsResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -403,18 +422,19 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   def getCoinOuts(countOpt: Option[Int] = None,
                   beforeOpt: Option[Long] = None,
                   afterOpt: Option[Long] = None)(
-      implicit ec: ExecutionContext): Future[List[CoinOut]] = {
+      implicit ec: ExecutionContext): Future[CoinOutsResponse] = {
     val params = buildPagingParams(countOpt, beforeOpt, afterOpt)
+    val method = HttpMethods.GET
     val uri = Uri("/v1/me/getcoinouts").withQuery(Uri.Query(params))
     val responseFuture = Source
       .single(
-        HttpRequest(uri = uri).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, uri.toString()): _*) -> 1)
+        HttpRequest(uri = uri, method = method).withHeaders(
+          privateAccessHeaders(method, uri.toString()): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[CoinOut]](Future.fromTry(triedResponse))
+        responseToModel[CoinOutsResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -425,17 +445,18 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     * @return 銀行口座一覧
     */
   def getBankAccounts()(
-      implicit ec: ExecutionContext): Future[List[BankAccount]] = {
+      implicit ec: ExecutionContext): Future[BankAccountsResponse] = {
+    val method = HttpMethods.GET
     val path = "/v1/me/getbankaccounts"
     val responseFuture = Source
       .single(
-        HttpRequest(uri = path).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, path): _*) -> 1)
+        HttpRequest(uri = path, method = method).withHeaders(
+          privateAccessHeaders(method, path): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[BankAccount]](Future.fromTry(triedResponse))
+        responseToModel[BankAccountsResponse](Future.fromTry(triedResponse))
     }
   }
 
@@ -451,18 +472,43 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
   def getDeposits(countOpt: Option[Int] = None,
                   beforeOpt: Option[Long] = None,
                   afterOpt: Option[Long] = None)(
-      implicit ec: ExecutionContext): Future[List[Deposit]] = {
+      implicit ec: ExecutionContext): Future[DepositsResponse] = {
     val params = buildPagingParams(countOpt, beforeOpt, afterOpt)
+    val method = HttpMethods.GET
     val uri = Uri("/v1/me/getdeposits").withQuery(Uri.Query(params))
     val responseFuture = Source
       .single(
-        HttpRequest(uri = uri).withHeaders(
-          privateAccessHeaders(HttpMethods.GET, uri.toString()): _*) -> 1)
+        HttpRequest(uri = uri, method = method).withHeaders(
+          privateAccessHeaders(method, uri.toString()): _*) -> 1)
       .via(poolClientFlow)
       .runWith(Sink.head)
     responseFuture.flatMap {
       case (triedResponse, _) =>
-        responseToModel[List[Deposit]](Future.fromTry(triedResponse))
+        responseToModel[DepositsResponse](Future.fromTry(triedResponse))
+    }
+  }
+
+  /**
+    * 出金。
+    *
+    * @param ec [[ExecutionContext]]
+    * @return 出金結果
+    */
+  def withdraw(withdraw: WithdrawRequest)(
+      implicit ec: ExecutionContext): Future[WithdrawResponse] = {
+    val method = HttpMethods.POST
+    val path = "/v1/me/withdraw"
+    val bytes = withdraw.asJson.noSpaces.getBytes(StandardCharsets.UTF_8)
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = path, method = method)
+          .withHeaders(privateAccessHeaders(method, path): _*)
+          .withEntity(bytes) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[WithdrawResponse](Future.fromTry(triedResponse))
     }
   }
 
