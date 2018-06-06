@@ -96,6 +96,10 @@ class ApiClientSpec
       val result = apiClient.getDeposits().futureValue
       println(result)
     }
+    "getWtihdrawals" in {
+      val result = apiClient.getWtihdrawals().futureValue
+      println(result)
+    }
   }
 
 }

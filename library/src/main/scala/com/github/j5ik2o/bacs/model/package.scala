@@ -13,5 +13,5 @@ package object model {
   type CoinOutsResponse = List[CoinOut]
   type BankAccountsResponse = List[BankAccount]
   type DepositsResponse = List[Deposit]
-
+  type WithdrawalsResponse = List[Withdrawal]
 }

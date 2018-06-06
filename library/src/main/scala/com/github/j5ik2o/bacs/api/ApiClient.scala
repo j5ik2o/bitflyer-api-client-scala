@@ -512,4 +512,36 @@ class ApiClient(config: ApiConfig)(implicit system: ActorSystem) {
     }
   }
 
+  /**
+    * 出金履歴。
+    *
+    * @param messageIdOpt
+    * @param countOpt
+    * @param beforeOpt
+    * @param afterOpt
+    * @param ec [[ExecutionContext]]
+    * @return
+    */
+  def getWtihdrawals(messageIdOpt: Option[Long] = None,
+                     countOpt: Option[Int] = None,
+                     beforeOpt: Option[Long] = None,
+                     afterOpt: Option[Long] = None)(
+      implicit ec: ExecutionContext): Future[WithdrawalsResponse] = {
+    val params = messageIdOpt.fold(Map.empty[String, String]) { v =>
+      Map("message_id" -> v.toString)
+    } ++ buildPagingParams(countOpt, beforeOpt, afterOpt)
+    val method = HttpMethods.GET
+    val uri = Uri("/v1/me/getwithdrawals").withQuery(Uri.Query(params))
+    val responseFuture = Source
+      .single(
+        HttpRequest(uri = uri, method = method).withHeaders(
+          privateAccessHeaders(method, uri.toString()): _*) -> 1)
+      .via(poolClientFlow)
+      .runWith(Sink.head)
+    responseFuture.flatMap {
+      case (triedResponse, _) =>
+        responseToModel[WithdrawalsResponse](Future.fromTry(triedResponse))
+    }
+  }
+
 }
