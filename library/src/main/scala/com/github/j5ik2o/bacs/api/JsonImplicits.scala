@@ -1,9 +1,8 @@
 package com.github.j5ik2o.bacs.api
 
-import java.time.{ZoneId, ZonedDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{ZoneId, ZonedDateTime}
 
-import com.github.j5ik2o.bacs.model.CurrencyCode
 import io.circe.{Decoder, Encoder}
 
 trait JsonImplicits {
@@ -17,11 +16,5 @@ trait JsonImplicits {
         v,
         DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.systemDefault()))
     }
-
-  implicit val CurrencyCodeEncoder: Encoder[CurrencyCode] =
-    Encoder[String].contramap(_.entryName)
-
-  implicit val CurrencyCodeDecoder: Decoder[CurrencyCode] =
-    Decoder[String].map(CurrencyCode.withName)
 
 }

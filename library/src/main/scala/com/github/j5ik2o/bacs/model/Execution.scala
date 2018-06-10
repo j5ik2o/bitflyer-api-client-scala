@@ -7,7 +7,7 @@ import io.circe.{Decoder, Encoder, Json}
 import io.circe.syntax._
 
 case class Execution(id: Long,
-                     side: String,
+                     side: Side,
                      price: BigDecimal,
                      size: BigDecimal,
                      execDate: ZonedDateTime,
@@ -32,7 +32,7 @@ object Execution extends JsonImplicits {
     hcursor =>
       for {
         id <- hcursor.get[Long]("id")
-        side <- hcursor.get[String]("side")
+        side <- hcursor.get[Side]("side")
         price <- hcursor.get[BigDecimal]("price")
         size <- hcursor.get[BigDecimal]("size")
         execDate <- hcursor.get[ZonedDateTime]("exec_date")

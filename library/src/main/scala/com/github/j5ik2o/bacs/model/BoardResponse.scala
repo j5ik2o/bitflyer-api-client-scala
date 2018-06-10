@@ -9,7 +9,9 @@ case class Ask(price: BigDecimal, size: BigDecimal)
 case class BoardResponse(midPrice: Long, bids: List[Bid], asks: List[Ask])
 
 object BoardResponse {
+
   import io.circe.generic.auto._
+
   implicit val BoardResponseEncoder: Encoder[BoardResponse] = Encoder.instance {
     v =>
       Json.obj(

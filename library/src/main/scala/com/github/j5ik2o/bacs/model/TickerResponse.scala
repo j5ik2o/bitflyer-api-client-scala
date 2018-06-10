@@ -6,7 +6,7 @@ import com.github.j5ik2o.bacs.api.JsonImplicits
 import io.circe._
 import io.circe.syntax._
 
-case class TickerResponse(product_code: String,
+case class TickerResponse(product_code: ProductCode,
                           timestamp: ZonedDateTime,
                           tickId: Long,
                           bestBid: BigDecimal,
@@ -42,7 +42,7 @@ object TickerResponse extends JsonImplicits {
   implicit val TickerDecoder: Decoder[TickerResponse] = Decoder.instance {
     hcursor =>
       for {
-        productCode <- hcursor.get[String]("product_code")
+        productCode <- hcursor.get[ProductCode]("product_code")
         timestamp <- hcursor.get[ZonedDateTime]("timestamp")
         tickId <- hcursor.get[Long]("tick_id")
         bestBid <- hcursor.get[BigDecimal]("best_bid")
